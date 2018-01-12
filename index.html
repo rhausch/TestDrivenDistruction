@@ -4,10 +4,10 @@ A minimalist viewer for Battlecode 2018 replay files.
 
 General TODOs:
     - Make sure we're not making off-by-one-turn errors with when things should be rendered
-    - Visualize Mars at all
+    - Visualize Mars at all (done, untested)
     - Distinguish between different types of units (started)
-    - Visualize health bars on units
-    - Make visualizations for attacks that make clear who is attacking whom
+    - Visualize health bars on units (done)
+    - Make visualizations for attacks that make clear who is attacking whom (done)
     - Show how many of each kind of unit each player has
     - Implement a scrubber (mostly done)
 -->
@@ -78,18 +78,21 @@ General TODOs:
         <tr><th>Turn #</th><th>Red Karbonite</th><th>Blue Karbonite</th></tr>
         <tr><td><span id="turn"></span></td><td><span id="red"></span></td><td><span id="blue"></span></td></tr>
     </table>
-    <div><canvas id="main" width=500 height=500 style="border: 1px solid #000"></canvas></div>
+    <div><canvas id="earth" width=500 height=500 style="border: 1px solid #000"></canvas>
+    <canvas id="mars" width=500 height=500 style="border: 1px solid #000"></canvas></div>
     <h2 id="winner"></h2>
 
 <script>
 
 var mousedown_listener, mouseup_listener, input_listener, needs_clear = false;
 var HEAD_SIZE = 0.3;
-var MAX_HEALTHS = {'Worker': 100, 'Knight': 250, 'Factory': 300, 'Ranger': 200, 'Mage': 80};
+var MAX_HEALTHS = {'Worker': 100, 'Knight': 250, 'Factory': 300, 'Ranger': 200, 'Mage': 80, 'Healer': 100};
 
 var BORDER_WIDTH = 0.2;
-var canvas = document.getElementById('main');
-var ctx = canvas.getContext('2d');
+var earth_canvas = document.getElementById('earth');
+var earth_ctx = earth_canvas.getContext('2d');
+var mars_canvas = document.getElementById('mars');
+var mars_ctx = mars_canvas.getContext('2d');
 
 var timeout = 10;
 var winner;
@@ -117,7 +120,6 @@ function visualize(data) {
     var TEAM_COLOR = {'Red': '#F00', 'Blue': '#00F'};
     var id2team = {};
     var maturation_times = {};
-    var earth_map, mars_map;
     var reserves = [[100, 100]]; // Precomped for every turn
 
     if (current_anim_timeout != null) {
@@ -135,9 +137,13 @@ function visualize(data) {
 
     // Determine who won
     winner = data['metadata'].winner;
-    // TODO Check if this is correct, it might be the other way round
-    if (winner == 'player1') winner = 'Blue';
-    else winner = 'Red';
+    if (winner == 'player1') {
+        winner = data['metadata'].player1;
+        winner_color = 'Red';
+    } else {
+        winner = data['metadata'].player2;
+        winner_color = 'Blue';
+    }
     
     // Parse each turn from the replay file
     data = data['message'].map(JSON.parse);
@@ -146,14 +152,20 @@ function visualize(data) {
     document.getElementById('winner').innerText = '';
 
     // Get impassable squares for Earth
-    earth_map = data[0].world.planet_maps.Earth.is_passable_terrain;
+    var planet_maps = {
+        'Earth': data[0].world.planet_maps.Earth.is_passable_terrain,
+        'Mars': data[0].world.planet_maps.Mars.is_passable_terrain
+    };
     
     // Get Karbonite data
     // We'll precomp this for every turn
-    karbonite_maps = [data[0].world.planet_maps.Earth.initial_karbonite];
+    var karbonite_maps = {
+        'Earth': [data[0].world.planet_maps.Earth.initial_karbonite],
+        'Mars': [planet_maps['Mars'].map(function(x) { return x.map(function() { return 0; }); })]
+    };
 
     // Convenience dimension variables
-    var w = earth_map[0].length, h = earth_map.length;
+    var w = planet_maps['Earth'][0].length, h = planet_maps['Earth'].length;
 
     // Get the team identities of the initial units
     // (these are not given ever again so we need to remember)
@@ -179,97 +191,106 @@ function visualize(data) {
         // for a turn instead, swap the two lines below.
         reserves[reserves.length - 1][t % 2] = data[t].karbonite;
         reserves.push(reserves[reserves.length - 1].slice(0));
-        
-        // If Karbonite on the board has changed, update our current counts
-        // TODO:
-        // This currently will result in updating counts
-        // _after_ being displayed for a turn.
-        // If this should occur _before_ being displayed
-        // for a turn instead, put the push after the for loop.
-        // TODO: handle mars updates here
-        karbonite_maps.push(karbonite_maps[karbonite_maps.length - 1].map(function(x) { return x.slice(0); }));
-        for (var i = 0; i < data[t].additional_changes.length; i += 1) {
-            var change = data[t].additional_changes[i];
-            if (change.KarboniteChanged != null && change.KarboniteChanged.location.planet === 'Earth') {
-                karbonite_maps[
-                    karbonite_maps.length - 1
-                ][
-                    change.KarboniteChanged.location.y
-                ][
-                    change.KarboniteChanged.location.x
-                ] = change.KarboniteChanged.new_amount;
-            }
-        }
-        
-        // Precomp units
-        for (var i = 0; i < data[t].units.length; i += 1) {
-            var unit = data[t].units[i];
-            if (unit.location.planet = 'Earth') {
-                // If this unit has never been seen before, it must
-                // have just been made. Thus it belongs to the current player.
-                if (!(unit.id in id2team)) {
-                    id2team[unit.id] = TEAMS[t % 2];
 
-                    // Factories, before they reach full health,
-                    // are actually just blueprints
-                    if (unit.unit_type == 'Factory' || unit.unit_type == 'Rocket') {
-                        maturation_times[unit.id] = Infinity;
+        function update_for(planet) {
+            // If Karbonite on the board has changed, update our current counts
+            karbonite_maps[planet].push(
+                karbonite_maps[planet][karbonite_maps[planet].length - 1].map(function(x) {
+                    return x.slice(0);
+                })
+            );
+            for (var i = 0; i < data[t].additional_changes.length; i += 1) {
+                var change = data[t].additional_changes[i];
+                if (change.KarboniteChanged != null && 
+                        change.KarboniteChanged.location.planet === planet) {
+                    karbonite_maps[planet][
+                        karbonite_maps[planet].length - 1
+                    ][
+                        change.KarboniteChanged.location.y
+                    ][
+                        change.KarboniteChanged.location.x
+                    ] = change.KarboniteChanged.new_amount;
+                }
+            }
+        
+            // Precomp units
+            for (var i = 0; i < data[t].units.length; i += 1) {
+                var unit = data[t].units[i];
+                if (unit.location.planet == planet) {
+                    // If this unit has never been seen before, it must
+                    // have just been made. Thus it belongs to the current player.
+                    if (!(unit.id in id2team)) {
+                        id2team[unit.id] = TEAMS[t % 2];
+
+                        // Factories, before they reach full health,
+                        // are actually just blueprints
+                        if (unit.unit_type == 'Factory' || unit.unit_type == 'Rocket') {
+                            maturation_times[unit.id] = Infinity;
+                        }
+                    }
+
+                    // Factories and rockets mature when they reach full health
+                    if ((unit.unit_type == 'Factory' && unit.health == 300 ||
+                            unit.unit_type == 'Rocket' && unit.health == 200) &&
+                            maturation_times[unit.id] == Infinity) {
+                        maturation_times[unit.id] = t;
                     }
                 }
-
-                // Factories and rockets mature when they reach full health
-                if ((unit.unit_type == 'Factory' && unit.health == 300 ||
-                        unit.unit_type == 'Rocket' && unit.health == 200) &&
-                        maturation_times[unit.id] == Infinity) {
-                    maturation_times[unit.id] = t;
-                }
             }
         }
+
+        update_for('Earth');
+        update_for('Mars');
     }
     
     // set the maximum turn we could slide to
     var t = data.length - 1;
     document.getElementById('turnslider').max = (t - t % 4) / 4 + 1;
+    
+    // This is used to invert the y-axis
+    function flipY(oy) { return (h - oy - 1); }
 
     // Now, to render an animation frame:
-    function render(t) {
+    function render_planet(t, planet, ctx, canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw the map
         for (var i = 0; i < h; i += 1) {
             for (var j = 0; j < w; j += 1) {
+                // Flip along y-axis
+                var px = j, py = flipY(i);
+                
                 // Black out impassable squares
-                if (!earth_map[i][j]) {
+                if (!planet_maps[planet][i][j]) {
                     ctx.fillStyle = '#000'
-                        ctx.fillRect(j * (500 / w), i * (500 / h),
+                        ctx.fillRect(px * (500 / w), py * (500 / h),
                                 500 / w, 500 / h);
                 }
 
                 // Write amount of Karbonite at location
                 ctx.fillStyle = '#888';
-                ctx.fillText(karbonite_maps[t][i][j].toString(),
-                        (j + 0.5) * (500 / w), (i + 0.5) * 500 / h);
+                ctx.fillText(karbonite_maps[planet][t][i][j].toString(),
+                        (px + 0.5) * (500 / w), (py + 0.5) * 500 / h);
             }
         }
-
-        // This sets the value of the slider to the current turn.
-        // Note: Turn number should be 1-indexed when displayed.
-        document.getElementById('turnslider').value = (t - t % 4) / 4 + 1;
-        
-        // Render Karbonite reserves and turn number
-        document.getElementById('turn').innerText = document.getElementById('turnslider').value.toString();
-        document.getElementById('blue').innerText = reserves[t][0].toString();
-        document.getElementById('red').innerText = reserves[t][1].toString();
 
         // Render units
         var unit_locations = {};
         var unit_types = {};
+        if (t > 0) {
+            for (var i = 0; i < data[t - 1].units.length; i += 1) {
+                var unit = data[t - 1].units[i];
+                unit_locations[unit.id] = [unit.location.x, unit.location.y, unit.location.planet];
+            }
+        }
         for (var i = 0; i < data[t].units.length; i += 1) {
             var unit = data[t].units[i];
-            if (unit.location.planet = 'Earth') {
+
+            unit_locations[unit.id] = [unit.location.x, unit.location.y, unit.location.planet];
+            unit_types[unit.id] = unit.unit_type;
+
+            if (unit.location.planet == planet) {
                 // Render the unit in the correct color.
-                unit_locations[unit.id] = [unit.location.x, unit.location.y];
-                unit_types[unit.id] = unit.unit_type;
 
                 // Blueprints will be given an alpha
                 if ((unit.unit_type === "Factory" || unit.unit_type === "Rocket") &&
@@ -308,10 +329,15 @@ function visualize(data) {
                     // Unimplemented unit type
                     ctx.fillStyle = '#FFF';
                 }
+                
+                // Flip along the y-axis for drawing.
+                // This is because canvas is top-left based.
+                var px = unit.location.x;
+                var py = flipY(unit.location.y);
 
                 // Fill the border
                 ctx.fillRect(
-                    unit.location.x * 500 / w, unit.location.y * 500 / h,
+                    px * 500 / w, py * 500 / h,
                     500 / w, 500 / h
                 )
 
@@ -320,17 +346,17 @@ function visualize(data) {
                 var health_ratio = unit.health / MAX_HEALTHS[unit.unit_type];
                 ctx.fillStyle = '#FFF';
                 ctx.fillRect(
-                    (unit.location.x + BORDER_WIDTH) * 500 / w, (unit.location.y + BORDER_WIDTH) * 500 / h,
+                    (px + BORDER_WIDTH) * 500 / w, (py + BORDER_WIDTH) * 500 / h,
                     (1 - 2 * BORDER_WIDTH) * 500 / w, (1 - 2 * BORDER_WIDTH) * 500 / h
                 );
                 ctx.fillStyle = ctx.strokeStyle = TEAM_COLOR[id2team[unit.id]];
                 ctx.lineWidth = 1;
                 ctx.strokeRect(
-                    (unit.location.x + BORDER_WIDTH) * 500 / w, (unit.location.y + BORDER_WIDTH) * 500 / h,
+                    (px + BORDER_WIDTH) * 500 / w, (py + BORDER_WIDTH) * 500 / h,
                     (1 - 2 * BORDER_WIDTH) * 500 / w, (1 - 2 * BORDER_WIDTH) * 500 / h
                 );
                 ctx.fillRect(
-                    (unit.location.x + BORDER_WIDTH) * 500 / w, (unit.location.y + BORDER_WIDTH + (1 - 2 * BORDER_WIDTH) * (1 - health_ratio)) * 500 / h,
+                    (px + BORDER_WIDTH) * 500 / w, (py + BORDER_WIDTH + (1 - 2 * BORDER_WIDTH) * (1 - health_ratio)) * 500 / h,
                     (1 - 2 * BORDER_WIDTH) * 500 / w, (1 - 2 * BORDER_WIDTH) * health_ratio * 500 / h
                 );
 
@@ -339,51 +365,82 @@ function visualize(data) {
         }
 
         // Render attacks
-        if (t + 1 < data.length) {
-            for (var i = 0; i < data[t + 1].changes.length; i += 1) {
-                var change = data[t + 1].changes[i];
-                if ('Attack' in change) {
-                    var attack = change['Attack'];
-                    var target = attack.target_unit_id, robot = attack.robot_id;
+        // (these are technically made the next turn,
+        //  but are rendered this turn for ease of viewing)
+        for (var i = 0; i < data[t].changes.length; i += 1) {
+            var change = data[t].changes[i];
+            if ('Attack' in change) {
+                var attack = change['Attack'];
+                var target = attack.target_unit_id, robot = attack.robot_id;
 
-                    ctx.strokeStyle = '#F0F';
-                    ctx.lineWidth = 5;
-                    ctx.beginPath();
-                    ctx.moveTo(
-                        (unit_locations[robot][0] + 0.5) * 500 / w,
-                        (unit_locations[robot][1] + 0.5) * 500 / h);
-                    ctx.lineTo(
-                        (unit_locations[target][0] + 0.5) * 500 / w,
-                        (unit_locations[target][1] + 0.5) * 500 / h);
-                    ctx.stroke();
+                if (unit_locations[target][2] != planet || unit_locations[robot][2] != planet)
+                    continue;
+                
+                // Store positions.
+                // While we do this we flip the y-axis
+                // for rendering to the canvas.
+                var rpos = {
+                    x: unit_locations[robot][0],
+                    y: flipY(unit_locations[robot][1])
+                };
 
-                    ctx.fillStyle = '#F0F';
-                    ctx.fillRect(
-                        (unit_locations[target][0] + 0.5) * 500 / w - HEAD_SIZE / 2 * 500 / w,
-                        (unit_locations[target][1] + 0.5) * 500 / h - HEAD_SIZE / 2 * 500 / h,
-                        HEAD_SIZE * 500 / w,
-                        HEAD_SIZE * 500 / h
-                    );
+                var tpos = {
+                    x: unit_locations[target][0],
+                    y: flipY(unit_locations[target][1])
+                };
 
-                    if (unit_types[robot] == 'Mage') {
-                        for (var dx = -1; dx <= 1; dx += 1) {
-                            for (var dy = -1; dy <= 1; dy += 1) {
-                                ctx.strokeStyle = '#F0F';
-                                ctx.lineWidth = 5;
-                                ctx.beginPath();
-                                ctx.moveTo(
-                                    (unit_locations[target][0] + 0.5) * 500 / w,
-                                    (unit_locations[target][1] + 0.5) * 500 / h);
-                                ctx.lineTo(
-                                    (unit_locations[target][0] + 0.5 + dx) * 500 / w,
-                                    (unit_locations[target][1] + 0.5 + dy) * 500 / h);
-                                ctx.stroke();
-                            }
+                ctx.strokeStyle = '#F0F';
+                ctx.lineWidth = 5;
+                ctx.beginPath();
+                ctx.moveTo(
+                    (rpos.x + 0.5) * 500 / w,
+                    (rpos.y + 0.5) * 500 / h);
+                ctx.lineTo(
+                    (tpos.x + 0.5) * 500 / w,
+                    (tpos.y + 0.5) * 500 / h);
+                ctx.stroke();
+
+                ctx.fillStyle = '#F0F';
+                ctx.fillRect(
+                    (tpos.x + 0.5) * 500 / w - HEAD_SIZE / 2 * 500 / w,
+                    (tpos.y + 0.5) * 500 / h - HEAD_SIZE / 2 * 500 / h,
+                    HEAD_SIZE * 500 / w,
+                    HEAD_SIZE * 500 / h
+                );
+                
+                // Render splash damage from mages
+                if (unit_types[robot] == 'Mage') {
+                    for (var dx = -1; dx <= 1; dx += 1) {
+                        for (var dy = -1; dy <= 1; dy += 1) {
+                            ctx.strokeStyle = '#F0F';
+                            ctx.lineWidth = 5;
+                            ctx.beginPath();
+                            ctx.moveTo(
+                                (tpos.x + 0.5) * 500 / w,
+                                (tpos.y + 0.5) * 500 / h);
+                            ctx.lineTo(
+                                (tpos.x + 0.5 + dx) * 500 / w,
+                                (tpos.y + 0.5 + dy) * 500 / h);
+                            ctx.stroke();
                         }
                     }
                 }
             }
         }
+    }
+
+    function render(t) {
+        render_planet(t, 'Earth', earth_ctx, earth_canvas);
+        render_planet(t, 'Mars', mars_ctx, mars_canvas);
+
+        // This sets the value of the slider to the current turn.
+        // Note: Turn number should be 1-indexed when displayed.
+        document.getElementById('turnslider').value = (t - t % 4) / 4 + 1;
+        
+        // Render Karbonite reserves and turn number
+        document.getElementById('turn').innerText = document.getElementById('turnslider').value.toString();
+        document.getElementById('blue').innerText = reserves[t][0].toString();
+        document.getElementById('red').innerText = reserves[t][1].toString();
 
         // Schedule next animation frame
         if (t + 1 < data.length) {
@@ -399,12 +456,12 @@ function visualize(data) {
             document.getElementById('winner').innerText = '';
         } else {
             // It's the end
-            document.getElementById('winner').innerText = winner + ' wins!';
-            document.getElementById('winner').style.color = TEAM_COLOR[winner];
+            document.getElementById('winner').innerText = winner_color + ' wins! (' + winner + ')';
+            document.getElementById('winner').style.color = TEAM_COLOR[winner_color];
         }
     }
     
-    // A bunch of slider event handlers
+    // A bunch of slider + button event handlers
     if (needs_clear) {
         document.getElementById('turnslider').removeEventListener('input', input_listener);
         document.getElementById('turnslider').removeEventListener('mousedown', mousedown_listener);
@@ -435,6 +492,11 @@ function visualize(data) {
         if (paused) this.innerText = 'Resume';
         else this.innerText = 'Pause';
     })
+    
+    // We're about to render, so let's
+    // force unpause.
+    paused = false;
+    document.getElementById('pause').innerText = 'Pause';
     
     render(0);
 }

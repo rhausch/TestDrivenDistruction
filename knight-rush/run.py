@@ -25,6 +25,7 @@ enemies = []
 
 # ######################## Functions ########################
 
+
 # Simple Actions
 def try_harvest(worker):
     for direction in directions:
@@ -240,7 +241,7 @@ while True:
                     #     gc.move_robot(worker.id, d)
             else: #move randomly
                 d = random.choice(directions)
-                try_move_loose(worker, d, 3)
+                try_move_loose(worker, d, 1)
                 # if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
                 #     gc.move_robot(worker.id, d)
 
@@ -267,24 +268,7 @@ while True:
 
                 target = nearest_enemy(mapLoc)
                 if target is not None:
-                    print("Time to fight:", knight, ' vs ', target)
-                    try_move_loose(target, mapLoc.direction_to(target.location.map_location()), 2)
-
-                # if len(enemy_locations) > 0:
-                #     closestLoc = None
-                #     distance = 999
-                #     mapLocation = location.map_location()
-                #     for loc in enemy_locations:
-                #         dist = mapLocation.distance_squared_to(loc)
-                #         if dist < distance:
-                #             distance = dist
-                #             closestLoc = loc
-                #     if closestLoc is not None:
-                #         # print("Moving to closest factory:", dist)
-                #         d = mapLocation.direction_to(closestLoc)
-                #         try_move_loose(knight, d, 1)
-                #         # if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
-                #             gc.move_robot(knight.id, d)
+                    try_move_loose(knight, mapLoc.direction_to(target.location.map_location()), 2)
 
                 else:
                     d = random.choice(directions)
