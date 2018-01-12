@@ -3,6 +3,8 @@ import random
 import sys
 import traceback
 
+
+# ######################## INITIALIZE ########################
 print("pystarting")
 
 # A GameController is the main type that you talk to the game with.
@@ -16,6 +18,107 @@ print("pystarted")
 # determinism isn't required, but it means that the same things will happen in every thing you run,
 # aside from turns taking slightly different amounts of time due to noise.
 random.seed(6137)
+
+# GLOBALS
+enemy_locations = []
+enemies = []
+
+# ######################## Functions ########################
+
+# Simple Actions
+def try_harvest(worker):
+    for direction in directions:
+        if gc.can_harvest(worker.id, direction):
+            # TODO: pick best place to harvest
+            gc.harvest(worker.id, direction)
+            return True
+    return False
+
+
+def try_move_strict(robot, direction):
+    if gc.can_move(robot.id, direction) and gc.is_move_ready(robot.id):
+        gc.move_robot(robot.id, direction)
+        return True
+    return False
+
+
+def try_move_loose(robot, direction, tollerance):
+    if not gc.is_move_ready(robot.id):
+        return False
+    if try_move_strict(robot, direction):
+        return True
+    left = direction
+    right = direction
+    for i in range(1, tollerance):
+        left = rotate_left(left)
+        right = rotate_right(right)
+        if try_move_strict(robot, left) or try_move_strict(robot, right):
+            return True
+    return False
+
+
+def nearest_enemy(my_map_location):
+    nearest = None
+    # print("Finding nearest of:", len(enemies), ' to ', my_map_location)
+    if len(enemies) > 0:
+        nearest_distance = 9999
+        for enemy in enemies:
+            if enemy.location.is_on_map():
+                enemy_distance = my_map_location.distance_squared_to(enemy.location.map_location())
+                # print("Enemy is ", enemy_distance, " away.")
+                if nearest_distance > enemy_distance:
+                    # print("Closer!", enemy_distance)
+                    nearest_distance = enemy_distance
+                    nearest = enemy
+            # else:
+            #     print("Enemy not on map:", enemy)
+    # print("Found:", nearest)
+    return nearest
+
+
+# basic helper functions
+def rotate_left(direction):
+    if direction == bc.Direction.North:
+        return bc.Direction.Northwest
+    if direction == bc.Direction.Northwest:
+        return bc.Direction.West
+    if direction == bc.Direction.West:
+        return bc.Direction.Southwest
+    if direction == bc.Direction.Southwest:
+        return bc.Direction.South
+    if direction == bc.Direction.South:
+        return bc.Direction.Southeast
+    if direction == bc.Direction.Southeast:
+        return bc.Direction.East
+    if direction == bc.Direction.East:
+        return bc.Direction.Northeast
+    if direction == bc.Direction.Northeast:
+        return bc.Direction.North
+    if direction == bc.Direction.Center:
+        return bc.Direction.Center
+
+
+def rotate_right(direction):
+    if direction == bc.Direction.North:
+        return bc.Direction.Northeast
+    if direction == bc.Direction.Northwest:
+        return bc.Direction.North
+    if direction == bc.Direction.West:
+        return bc.Direction.Northwest
+    if direction == bc.Direction.Southwest:
+        return bc.Direction.West
+    if direction == bc.Direction.South:
+        return bc.Direction.Southwest
+    if direction == bc.Direction.Southeast:
+        return bc.Direction.South
+    if direction == bc.Direction.East:
+        return bc.Direction.Southeast
+    if direction == bc.Direction.Northeast:
+        return bc.Direction.East
+    if direction == bc.Direction.Center:
+        return bc.Direction.Center
+
+# ######################## Main ##############################
 
 # let's start off with some research!
 # we can queue as much as we want.
@@ -57,7 +160,7 @@ while True:
 
             if someLoc is None and unit.location.is_on_map():
                 someLoc = unit.location.map_location()
-        print('pyround:', gc.round(),
+        print('Knight Rush:', gc.round(),
               ' karbonite:', gc.karbonite(),
               ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights), ' debug:', someLoc)
 
@@ -95,22 +198,31 @@ while True:
                 continue
 
         # Have workers move to
-        # TODO: handle being in a garrison
         for worker in myWorkers:
             location = worker.location
-            if location.is_on_map():
-                nearby = gc.sense_nearby_units(location.map_location(), 2)
-                for other in nearby:
-                    if gc.can_build(worker.id, other.id):
-                        gc.build(worker.id, other.id)
-                        # print('built a factory!')
-                        # skip moving
-                        continue
-                    if gc.can_repair(worker.id, other.id):
-                        gc.repair(worker.id, other.id)
-                        print('repaired a factory!')
-                        continue
-            if len(factoriesToHeal) > 0: #move towards closest factory
+            if not location.is_on_map():
+                # can't do anything, in garrison or rocket
+                continue
+            map_location = location.map_location()
+
+            # what to do?
+            # Action: try building or repairing
+            nearby = gc.sense_nearby_units(map_location, 2)
+            for other in nearby:
+                if gc.can_build(worker.id, other.id):
+                    gc.build(worker.id, other.id)
+                    # print('built a factory!')
+                    # skip moving
+                    continue
+                if gc.can_repair(worker.id, other.id):
+                    gc.repair(worker.id, other.id)
+                    print('repaired a factory!')
+                    continue
+            # Action: try harvesting
+            try_harvest(worker)
+
+            # where to go?
+            if len(factoriesToHeal) > 0:  # move towards closest factory
                 closestFactory = None
                 distance = 999
                 mapLocation = location.map_location()
@@ -123,19 +235,21 @@ while True:
                 if closestFactory is not None:
                     # print("Moving to closest factory:", dist)
                     d = mapLocation.direction_to(factory.location.map_location())
-                    if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
-                        gc.move_robot(worker.id, d)
+                    try_move_strict(worker, d)
+                    # if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
+                    #     gc.move_robot(worker.id, d)
             else: #move randomly
                 d = random.choice(directions)
-                if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
-                    gc.move_robot(worker.id, d)
+                try_move_loose(worker, d, 3)
+                # if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
+                #     gc.move_robot(worker.id, d)
 
         enemy_locations = []
-        #sense enemies
+        # sense enemies
         if someLoc is not None:
-            units = gc.sense_nearby_units_by_team(someLoc, 5001, opponent_team)
-            print('enemies sensed:', len(units))
-            for unit in units:
+            enemies = list(gc.sense_nearby_units_by_team(someLoc, 5001, opponent_team))
+            print('enemies sensed:', len(enemies))
+            for unit in enemies:
                 if unit.location.is_on_map():
                     enemy_locations.append(unit.location.map_location())
 
@@ -151,20 +265,26 @@ while True:
                         gc.attack(knight.id, other.id)
                         continue
 
-                if len(enemy_locations) > 0:
-                    closestLoc = None
-                    distance = 999
-                    mapLocation = location.map_location()
-                    for loc in enemy_locations:
-                        dist = mapLocation.distance_squared_to(loc)
-                        if dist < distance:
-                            distance = dist
-                            closestLoc = loc
-                    if closestLoc is not None:
-                        # print("Moving to closest factory:", dist)
-                        d = mapLocation.direction_to(closestLoc)
-                        if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
-                            gc.move_robot(knight.id, d)
+                target = nearest_enemy(mapLoc)
+                if target is not None:
+                    print("Time to fight:", knight, ' vs ', target)
+                    try_move_loose(target, mapLoc.direction_to(target.location.map_location()), 2)
+
+                # if len(enemy_locations) > 0:
+                #     closestLoc = None
+                #     distance = 999
+                #     mapLocation = location.map_location()
+                #     for loc in enemy_locations:
+                #         dist = mapLocation.distance_squared_to(loc)
+                #         if dist < distance:
+                #             distance = dist
+                #             closestLoc = loc
+                #     if closestLoc is not None:
+                #         # print("Moving to closest factory:", dist)
+                #         d = mapLocation.direction_to(closestLoc)
+                #         try_move_loose(knight, d, 1)
+                #         # if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
+                #             gc.move_robot(knight.id, d)
 
                 else:
                     d = random.choice(directions)
