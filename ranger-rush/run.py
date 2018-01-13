@@ -17,7 +17,7 @@ print("pystarted")
 # It's a good idea to try to keep your bots deterministic, to make debugging easier.
 # determinism isn't required, but it means that the same things will happen in every thing you run,
 # aside from turns taking slightly different amounts of time due to noise.
-random.seed(6137)
+random.seed(6139)
 
 # GLOBALS
 enemy_locations = []
@@ -145,10 +145,10 @@ def get_opposite_direction(direction):
 # let's start off with some research!
 # we can queue as much as we want.
 gc.queue_research(bc.UnitType.Worker)
+gc.queue_research(bc.UnitType.Ranger)
+gc.queue_research(bc.UnitType.Ranger)
+gc.queue_research(bc.UnitType.Ranger)
 gc.queue_research(bc.UnitType.Rocket)
-gc.queue_research(bc.UnitType.Knight)
-gc.queue_research(bc.UnitType.Knight)
-gc.queue_research(bc.UnitType.Knight)
 
 my_team = gc.team()
 if my_team == bc.Team.Red:
@@ -191,9 +191,9 @@ while True:
                 print("ERROR: Unknown unit type ", unit)
             if someLoc is None and unit.location.is_on_map():
                 someLoc = unit.location.map_location()
-        print('Knight Rush:', gc.round(),
+        print('Ranger Rush:', gc.round(),
               ' karbonite:', gc.karbonite(),
-              ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights))
+              ' units:', len(myWorkers), ',', len(myFactories), ',', len(myRangers))
 
         if len(myWorkers) < 5 and gc.karbonite() > 16:
             print('Not enough workers:', gc.karbonite())
@@ -204,7 +204,7 @@ while True:
                     print('replicated! ', gc.karbonite())
                     break
 
-        if gc.karbonite() > bc.UnitType.Factory.blueprint_cost() and (len(myFactories) < 2 or gc.karbonite() > 300):
+        if gc.karbonite() > bc.UnitType.Factory.blueprint_cost() and (len(myFactories) < 3 or gc.karbonite() > 300):
             d = random.choice(directions)
             for worker in myWorkers:
                 if gc.can_blueprint(worker.id, bc.UnitType.Factory, d):
