@@ -1,8 +1,8 @@
 import battlecode as bc
+# import unitmap
 import random
 import sys
 import traceback
-
 
 # ######################## INITIALIZE ########################
 print("pystarting")
@@ -11,6 +11,10 @@ print("pystarting")
 # Its constructor will connect to a running game.
 gc = bc.GameController()
 directions = list(bc.Direction)
+
+# unit_map = unitmap.Unitmap(gc)
+# unit_map.generate_map_from_initial_units()
+# unit_map.print_map()
 
 print("pystarted")
 
@@ -192,6 +196,8 @@ gc.queue_research(bc.UnitType.Knight)
 gc.queue_research(bc.UnitType.Knight)
 gc.queue_research(bc.UnitType.Knight)
 
+unitmap =
+
 my_team = gc.team()
 if my_team == bc.Team.Red:
     opponent_team = bc.Team.Blue
@@ -224,6 +230,7 @@ while True:
 
             if someLoc is None and unit.location.is_on_map():
                 someLoc = unit.location.map_location()
+
         print('Pather:', gc.round(),
               ' karbonite:', gc.karbonite(),
               ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights), ' debug:', someLoc)

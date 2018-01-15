@@ -2,6 +2,7 @@ import battlecode as bc
 import random
 import sys
 import traceback
+import unitmap
 
 print("pystarting")
 
@@ -9,6 +10,10 @@ print("pystarting")
 # Its constructor will connect to a running game.
 gc = bc.GameController()
 directions = list(bc.Direction)
+umap = unitmap.Unitmap(gc)
+umap.generate_map_from_initial_units()
+if gc.planet() == bc.Planet.Earth:
+    umap.print_map()
 
 print("pystarted")
 
@@ -54,10 +59,18 @@ while True:
                 myWorkers.append(unit)
             elif unit.unit_type == bc.UnitType.Knight:
                 myKnights.append(unit)
+            elif unit.unit_type == bc.UnitType.Ranger:
+                myRangers.append(unit)
+            elif unit.unit_type == bc.UnitType.Healer:
+                myHealers.append(unit)
+            elif unit.unit_type == bc.UnitType.Mage:
+                myMages.append(unit)
+            elif unit.unit_type == bc.UnitType.Rocket:
+                myRockets.append(unit)
+            else:
+                print("ERROR: Unknown unit type ", unit)
 
-            if someLoc is None and unit.location.is_on_map():
-                someLoc = unit.location.map_location()
-        print('pyround:', gc.round(),
+        print('Rob:', gc.round(),
               ' karbonite:', gc.karbonite(),
               ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights), ' debug:', someLoc)
 
@@ -79,19 +92,19 @@ while True:
 
         factoriesToHeal = []
         for factory in myFactories:
+            # print("Factory:", factory, " garrison ", len(factory.structure_garrison()), " can produce? ", gc.can_produce_robot(factory.id, bc.UnitType.Knight), "   kar", gc.karbonite())
             if factory.health < factory.max_health:
                 factoriesToHeal.append(factory)
             garrison = factory.structure_garrison()
-            # print('in factory:', factory.id, ' ', len(garrison), ' ', factory.unit_type, ' ', gc.can_produce_robot(factory.id, bc.UnitType.Knight))
             if len(garrison) > 0:
                 d = random.choice(directions)
                 if gc.can_unload(factory.id, d):
-                    # print('unloaded a knight!')
                     gc.unload(factory.id, d)
+                    print("Unloaded a knight")
                     continue
             elif gc.can_produce_robot(factory.id, bc.UnitType.Knight):
                 gc.produce_robot(factory.id, bc.UnitType.Knight)
-                # print('produced a knight!')
+                print("Produced a knight")
                 continue
 
         # Have workers move to
@@ -99,78 +112,55 @@ while True:
         for worker in myWorkers:
             location = worker.location
             if location.is_on_map():
-                nearby = gc.sense_nearby_units(location.map_location(), 2)
-                for other in nearby:
-                    if gc.can_build(worker.id, other.id):
-                        gc.build(worker.id, other.id)
-                        # print('built a factory!')
-                        # skip moving
-                        continue
-                    if gc.can_repair(worker.id, other.id):
-                        gc.repair(worker.id, other.id)
-                        print('repaired a factory!')
-                        continue
-            if len(factoriesToHeal) > 0: #move towards closest factory
-                closestFactory = None
-                distance = 999
-                mapLocation = location.map_location()
+                closest_factory = None
+                closest_factory_distance = 999
+                my_location = location.map_location()
                 for factory in factoriesToHeal:
-                    loc = factory.location.map_location()
-                    dist = mapLocation.distance_squared_to(loc)
-                    if dist < distance:
-                        distance = dist
-                        closestFactory = factory
-                if closestFactory is not None:
-                    # print("Moving to closest factory:", dist)
-                    d = mapLocation.direction_to(factory.location.map_location())
-                    if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
-                        gc.move_robot(worker.id, d)
-            else: #move randomly
-                d = random.choice(directions)
-                if gc.is_move_ready(worker.id) and gc.can_move(worker.id, d):
-                    gc.move_robot(worker.id, d)
+                    if my_location.is_adjacent_to(factory.location.map_location()):
+                        if gc.can_build(worker.id, factory.id):
+                            print("Worker ", worker.id, " build factory ", factory.id)
+                            gc.build(worker.id, factory.id)
+                        if gc.can_repair(worker.id, factory.id):
+                            print("Worker ", worker.id, " repaired factory ", factory.id)
+                            gc.repair(worker.id, factory.id)
+                    factory_distance = my_location.distance_squared_to(factory.location.map_location())
+                    if factory_distance < closest_factory_distance:
+                        closest_factory = factory
+                        closest_factory_distance = factory_distance
 
-        enemy_locations = []
-        #sense enemies
-        if someLoc is not None:
-            units = gc.sense_nearby_units_by_team(someLoc, 5001, opponent_team)
-            print('enemies sensed:', len(units))
-            for unit in units:
-                if unit.location.is_on_map():
-                    enemy_locations.append(unit.location.map_location())
+                if closest_factory:
+                    direction = my_location.direction_to(closest_factory.location.map_location())
+                    if gc.is_move_ready(worker.id) and gc.can_move(worker.id, direction):
+                        gc.move_robot(worker.id, direction)
+                else:
+                    direction = random.choice(directions)
+                    if gc.is_move_ready(worker.id) and gc.can_move(worker.id, direction):
+                        gc.move_robot(worker.id, direction)
 
-        # moves knights around randomly
+        enemies = [unit for unit in gc.units() if unit.team != my_team]
+        if enemies:
+            umap.generate_map_raw(enemies)
+        else:
+            umap.generate_map_from_initial_units()
+
+        # moves knights towards enemy
         for knight in myKnights:
             location = knight.location
             if location.is_on_map():
-                mapLoc = location.map_location()
-                nearby = gc.sense_nearby_units(location.map_location(), 2)
-                for other in nearby:
-                    if other.team != my_team and gc.is_attack_ready(knight.id) and gc.can_attack(knight.id, other.id):
+                my_location = knight.location.map_location()
+                d = umap.get_direction_at_location(location.map_location())
+                if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
+                    gc.move_robot(knight.id, d)
+
+                nearby_enemies = [unit for unit in gc.sense_nearby_units(location.map_location(), 2) if unit.team != my_team]
+                if nearby_enemies:
+                    print("Knight ", knight.id, " sensed ", len(nearby_enemies), " enemies")
+                for enemy in nearby_enemies:
+                    print("Trying to attack unit: ", gc.is_attack_ready(knight.id), " ", gc.can_attack(knight.id, enemy.id), " D:", my_location.distance_squared_to(enemy.location.map_location()))
+                    if gc.is_attack_ready(knight.id) and gc.can_attack(knight.id, enemy.id):
                         print('attacked a thing!')
-                        gc.attack(knight.id, other.id)
+                        gc.attack(knight.id, enemy.id)
                         continue
-
-                if len(enemy_locations) > 0:
-                    closestLoc = None
-                    distance = 999
-                    mapLocation = location.map_location()
-                    for loc in enemy_locations:
-                        dist = mapLocation.distance_squared_to(loc)
-                        if dist < distance:
-                            distance = dist
-                            closestLoc = loc
-                    if closestLoc is not None:
-                        # print("Moving to closest factory:", dist)
-                        d = mapLocation.direction_to(closestLoc)
-                        if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
-                            gc.move_robot(knight.id, d)
-
-                else:
-                    d = random.choice(directions)
-                    if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
-                        gc.move_robot(knight.id, d)
-
 
     except Exception as e:
         print('Error:', e)
