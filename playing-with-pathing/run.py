@@ -64,8 +64,6 @@ def try_move_loose(robot, direction, tollerance):
 
 # Stores the robots currently bugging
 bugging = {}
-
-
 def try_move_bug_simple(robot, target):
     if not gc.is_move_ready(robot.id):
         return False

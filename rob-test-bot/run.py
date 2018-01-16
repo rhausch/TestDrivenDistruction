@@ -3,13 +3,16 @@ import random
 import sys
 import traceback
 import unitmap
+import util
 
 print("pystarting")
 
 # A GameController is the main type that you talk to the game with.
 # Its constructor will connect to a running game.
 gc = bc.GameController()
-directions = list(bc.Direction)
+
+util.gc = gc
+
 umap = unitmap.Unitmap(gc)
 umap.generate_map_from_initial_units()
 if gc.planet() == bc.Planet.Earth:
@@ -72,13 +75,14 @@ while True:
             else:
                 print("ERROR: Unknown unit type ", unit)
 
-        # print('Rob:', gc.round(),
-        #       ' karbonite:', gc.karbonite(),
-        #       ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights), ' debug:', someLoc)
+        if gc.round() % 25 == 0:
+            print('Rob:', gc.round(),
+                  ' karbonite:', gc.karbonite(),
+                  ' units:', len(myWorkers), ',', len(myFactories), ',', len(myKnights), ' debug:', someLoc)
 
         if len(myWorkers) < 5 and gc.karbonite() > 16:
             # print('Not enough workers:', gc.karbonite())
-            d = random.choice(directions)
+            d = util.get_random_direction()
             for worker in myWorkers:
                 if gc.can_replicate(worker.id, d):
                     gc.replicate(worker.id, d)
@@ -86,7 +90,7 @@ while True:
                     break
 
         if gc.karbonite() > bc.UnitType.Factory.blueprint_cost() and (len(myFactories) < 2 or gc.karbonite() > 300):
-            d = random.choice(directions)
+            d = util.get_random_direction()
             for worker in myWorkers:
                 if gc.can_blueprint(worker.id, bc.UnitType.Factory, d):
                     gc.blueprint(worker.id, bc.UnitType.Factory, d)
@@ -99,7 +103,7 @@ while True:
                 factoriesToHeal.append(factory)
             garrison = factory.structure_garrison()
             if len(garrison) > 0:
-                d = random.choice(directions)
+                d = util.get_random_direction()
                 if gc.can_unload(factory.id, d):
                     gc.unload(factory.id, d)
                     # print("Unloaded a knight")
@@ -119,31 +123,33 @@ while True:
                 my_location = location.map_location()
                 for factory in factoriesToHeal:
                     if my_location.is_adjacent_to(factory.location.map_location()):
-                        if gc.can_build(worker.id, factory.id):
-                            # print("Worker ", worker.id, " build factory ", factory.id)
-                            gc.build(worker.id, factory.id)
-                        if gc.can_repair(worker.id, factory.id):
-                            # print("Worker ", worker.id, " repaired factory ", factory.id)
-                            gc.repair(worker.id, factory.id)
+                        util.try_build(worker, factory)
+                        util.try_repair(worker, factory)
+                        # if gc.can_build(worker.id, factory.id):
+                        #     # print("Worker ", worker.id, " build factory ", factory.id)
+                        #     gc.build(worker.id, factory.id)
+                        # if gc.can_repair(worker.id, factory.id):
+                        #     # print("Worker ", worker.id, " repaired factory ", factory.id)
+                        #     gc.repair(worker.id, factory.id)
                     factory_distance = my_location.distance_squared_to(factory.location.map_location())
                     if factory_distance < closest_factory_distance:
                         closest_factory = factory
                         closest_factory_distance = factory_distance
+
+                util.try_harvesting(worker)
 
                 if closest_factory:
                     direction = my_location.direction_to(closest_factory.location.map_location())
                     if gc.is_move_ready(worker.id) and gc.can_move(worker.id, direction):
                         gc.move_robot(worker.id, direction)
                 else:
-                    direction = random.choice(directions)
+                    direction = util.get_random_direction()
                     if gc.is_move_ready(worker.id) and gc.can_move(worker.id, direction):
                         gc.move_robot(worker.id, direction)
 
         enemies = [unit for unit in gc.units() if unit.team != my_team]
         if enemies:
             umap.generate_map_raw(enemies)
-            print("Turn: ", gc.round(), " Enemies:", len(enemies))
-            umap.print_map()
         else:
             umap.generate_map_from_initial_units()
 
@@ -153,8 +159,9 @@ while True:
             if location.is_on_map():
                 my_location = knight.location.map_location()
                 d = umap.get_direction_at_location(location.map_location())
-                if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
-                    gc.move_robot(knight.id, d)
+                # if gc.is_move_ready(knight.id) and gc.can_move(knight.id, d):
+                #     gc.move_robot(knight.id, d)
+                util.try_move_loose(knight, d, 1)
 
                 nearby_enemies = [unit for unit in gc.sense_nearby_units(location.map_location(), 2) if unit.team != my_team]
                 for enemy in nearby_enemies:
