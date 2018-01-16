@@ -2,6 +2,10 @@ import battlecode as bc
 import random
 import sys
 import traceback
+import time
+
+import os
+print(os.getcwd())
 
 print("pystarting")
 
@@ -27,7 +31,11 @@ my_team = gc.team()
 
 while True:
     # We only support Python 3, which means brackets around print()
+<<<<<<< HEAD
     print('pyround:', gc.round())
+=======
+    print('pyround:', gc.round(), 'time left:', gc.get_time_left_ms(), 'ms')
+>>>>>>> 6b0b8df56ef8ebdba88911a44d7374befbda1e30
 
     # frequent try/catches are a good idea
     try:
@@ -85,4 +93,8 @@ while True:
     # these lines are not strictly necessary, but it helps make the logs make more sense.
     # it forces everything we've written this turn to be written to the manager.
     sys.stdout.flush()
+<<<<<<< HEAD
     sys.stderr.flush()
+=======
+    sys.stderr.flush()
+>>>>>>> 6b0b8df56ef8ebdba88911a44d7374befbda1e30

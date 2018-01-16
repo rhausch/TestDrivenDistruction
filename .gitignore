@@ -3,3 +3,6 @@ working_dir
 knight-rush/.idea
 knight-rush/venv
 rob-test-bot/venv
+replay*
+viewer_latest*
+viewer_currentInstall.json
