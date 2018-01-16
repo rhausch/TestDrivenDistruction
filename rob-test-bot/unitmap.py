@@ -5,13 +5,17 @@ from collections import deque
 
 # Useful helpers
 movable_directions = [d for d in list(bc.Direction) if d != bc.Direction.Center]
-
+orthoginal_directions = [bc.Direction.North, bc.Direction.East, bc.Direction.South, bc.Direction.West]
 
 def empty_map(x, y):
     return [[(bc.Direction.Center, -1) for _ in range(0, y)] for _ in range(0, x)]
 
 
-def direction_lookup(direction):
+def direction_lookup(direction, value):
+    if value == -1:
+        return "[#]"
+    if value < 10:
+        v = str(value)
     if direction == bc.Direction.North:
         return " ↑ "
     if direction == bc.Direction.Northwest:
@@ -33,7 +37,7 @@ def direction_lookup(direction):
         # return "↗"
         return " /'"
     if direction == bc.Direction.Center:
-        return " O "
+        return " @ "
 
 
 def get_opposite_direction(direction):
@@ -79,10 +83,10 @@ class Unitmap:
         self.map = empty_map(self.size_x, self.size_y)
 
     def print_map(self):
-        print("Values")
-        print("\n".join([" ".join([str(self.map[x][y][1]) for x in range(self.size_x)]) for y in range(self.size_y - 1, -1, -1)]))
+        # print("Values")
+        # print("\n".join([" ".join([str(self.map[x][y][1]) for x in range(self.size_x)]) for y in range(self.size_y - 1, -1, -1)]))
         print("Directions")
-        print("\n".join(["".join([direction_lookup(self.map[x][y][0]) for x in range(self.size_x)]) for y in range(self.size_y - 1, -1, -1)]))
+        print("\n".join(["".join([direction_lookup(self.map[x][y][0], self.map[x][y][1]) for x in range(self.size_x)]) for y in range(self.size_y - 1, -1, -1)]))
 
     def get_location(self, map_location):
         return self.map[map_location.x][map_location.y]
@@ -97,13 +101,29 @@ class Unitmap:
         self.map[map_location.x][map_location.y] = values
 
     def generate_map_raw(self, enemies):
+        self.clear_map()
         print(movable_directions)
         # print(list(bc.Direction))
         # print([d for d in list(bc.Direction)])
         # print([d for d in list(bc.Direction) if d != bc.Direction.Center])
-        location_queue = deque([enemy.location.map_location() for enemy in enemies if enemy.location.is_on_map()])
-        for location in location_queue:
-            self.set_location(location, (bc.Direction.Center, 0))
+        # location_queue = deque([enemy.location.map_location() for enemy in enemies if enemy.location.is_on_map()])
+        # for location in location_queue:
+        #    self.set_location(location, (bc.Direction.Center, 0))
+
+        location_queue = deque()
+        # Populate initial queue with attackable locations for each enemy
+        for enemy in enemies:
+            if enemy.location.is_on_map():
+                # place enemy in field as goal
+                enemy_location = enemy.location.map_location()
+                self.set_location(enemy_location, (bc.Direction.Center, 0))
+                # for each attackable direction
+                for direction in orthoginal_directions:
+                    # add location to attack from to queue
+                    current_location = enemy_location.add(direction)
+                    if self.planet_map.on_map(current_location) and self.planet_map.is_passable_terrain_at(current_location):
+                        self.set_location(current_location, (get_opposite_direction(direction), 1))
+                        location_queue.append(current_location)
 
         while location_queue:
             current_location = location_queue.popleft()
