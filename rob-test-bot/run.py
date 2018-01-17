@@ -4,6 +4,9 @@ import sys
 import traceback
 import unitmap
 import util
+import marscontroller
+import earthcontroller
+import units
 
 print("pystarting")
 

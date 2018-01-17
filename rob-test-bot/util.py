@@ -117,8 +117,8 @@ def x_y_to_location_mars(x, y):
 
 def get_random_location(planet):
     planet_map = gc.starting_map(planet)
-    x = random.randint(planet_map.height)
-    y = random.randint(planet_map.width)
+    x = random.randint(0, planet_map.height - 1)
+    y = random.randint(0, planet_map.width - 1)
     return bc.MapLocation(planet, x, y)
 
 
@@ -129,6 +129,19 @@ def get_random_landing_location():
         location = get_random_location(bc.Planet.Mars)
         print("Wasn't valid, tried again and got:", location)
     return location
+
+
+def get_nearest_unit(location, units):
+    closest_unit = None
+    closest_distance = 9999
+    for unit in units:
+        if unit.location.is_on_map():
+            unit_distance = unit.location.map_location().distance_squared_to(location)
+            if unit_distance < closest_distance:
+                closest_distance = unit_distance
+                closest_unit = unit
+    return closest_unit
+
 
 def try_harvesting(worker):
     for direction in movable_directions:
