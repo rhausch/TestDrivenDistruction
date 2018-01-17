@@ -96,11 +96,17 @@ while True:
                     gc.blueprint(worker.id, bc.UnitType.Factory, d)
                     break
 
-        factoriesToHeal = []
+        if gc.karbonite() > bc.UnitType.Rocket.blueprint_cost() and gc.round() > 100:
+            d = util.get_random_direction()
+            for worker in myWorkers:
+                if gc.can_blueprint(worker.id, bc.UnitType.Rocket, d):
+                    gc.blueprint(worker.id, bc.UnitType.Rocket, d)
+
+        buildingsToHeal = []
         for factory in myFactories:
             # print("Factory:", factory, " garrison ", len(factory.structure_garrison()), " can produce? ", gc.can_produce_robot(factory.id, bc.UnitType.Knight), "   kar", gc.karbonite())
             if factory.health < factory.max_health:
-                factoriesToHeal.append(factory)
+                buildingsToHeal.append(factory)
             garrison = factory.structure_garrison()
             if len(garrison) > 0:
                 d = util.get_random_direction()
@@ -113,6 +119,19 @@ while True:
                 # print("Produced a knight")
                 continue
 
+        for rocket in myRockets:
+            if rocket.health < rocket.max_health:
+                buildingsToHeal.append(rocket)
+            garrison = rocket.structure_garrison()
+            if len(garrison) >= 2:
+                gc.launch_rocket(rocket.id, util.get_random_landing_location())
+            else:
+                for worker in myWorkers:
+                    if gc.can_load(rocket.id, worker.id):
+                        gc.load(rocket.id, worker.id)
+                # hack, use heal list to get workers to move towards rocket
+                buildingsToHeal.append(rocket)
+
         # Have workers move to
         # TODO: handle being in a garrison
         for worker in myWorkers:
@@ -121,7 +140,7 @@ while True:
                 closest_factory = None
                 closest_factory_distance = 999
                 my_location = location.map_location()
-                for factory in factoriesToHeal:
+                for factory in buildingsToHeal:
                     if my_location.is_adjacent_to(factory.location.map_location()):
                         util.try_build(worker, factory)
                         util.try_repair(worker, factory)

@@ -107,6 +107,29 @@ def rotate_right(direction):
         return bc.Direction.Center
 
 
+def x_y_to_location_earth(x, y):
+    return bc.MapLocation(bc.Planet.Earth, x, y)
+
+
+def x_y_to_location_mars(x, y):
+    return bc.MapLocation(bc.Planet.Mars, x, y)
+
+
+def get_random_location(planet):
+    planet_map = gc.starting_map(planet)
+    x = random.randint(planet_map.height)
+    y = random.randint(planet_map.width)
+    return bc.MapLocation(planet, x, y)
+
+
+def get_random_landing_location():
+    location = get_random_location(bc.Planet.Mars)
+    print("Random Mars Location:", location)
+    while not gc.starting_map(bc.Planet.Mars).is_passable_terrain_at(location):
+        location = get_random_location(bc.Planet.Mars)
+        print("Wasn't valid, tried again and got:", location)
+    return location
+
 def try_harvesting(worker):
     for direction in movable_directions:
         if gc.can_harvest(worker.id, direction):
