@@ -152,6 +152,13 @@ def try_harvesting(worker):
     return False
 
 
+def try_unload(structure):
+    for direction in movable_directions:
+        if gc.can_unload(structure.id, direction):
+            gc.unload(structure.id, direction)
+            return True
+    return False
+
 def try_build(worker, factory):
     if worker.location.map_location().is_adjacent_to(factory.location.map_location()):
         if gc.can_build(worker.id, factory.id):

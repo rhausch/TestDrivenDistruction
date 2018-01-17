@@ -42,10 +42,43 @@ if my_team == bc.Team.Red:
 else:
     opponent_team = bc.Team.Red
 
+if gc.planet() == bc.Planet.Earth:
+    controller = earthcontroller.EarthController(gc)
+else:
+    controller = marscontroller.MarsController(gc)
+
 while True:
     if gc.planet() == bc.Planet.Mars:
+        print("Running Mars Controller turn")
+        try:
+            controller.run_turn()
+        except Exception as e:
+            print('Error:', e)
+            # use this to show where the error was
+            traceback.print_exc()
+        # send the actions we've performed, and wait for our next turn.
         gc.next_turn()
+        sys.stdout.flush()
+        sys.stderr.flush()
         continue
+    if gc.planet() == bc.Planet.Earth:
+        print("Running Earth Controller turn")
+        try:
+            controller.run_turn()
+        except Exception as e:
+            print('Error:', e)
+            # use this to show where the error was
+            traceback.print_exc()
+        # send the actions we've performed, and wait for our next turn.
+        gc.next_turn()
+
+        # these lines are not strictly necessary, but it helps make the logs make more sense.
+        # it forces everything we've written this turn to be written to the manager.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        continue
+
+    print("Should never get here!!!")
 
     myFactories = []
     myWorkers = []

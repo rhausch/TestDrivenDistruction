@@ -51,7 +51,7 @@ class Units:
 
     def process_units(self):
         self.clear_units()
-        for unit in gc.units():
+        for unit in self.gc.units():
             if unit.team == self.my_team:
                 self.my_units.append(unit)
                 if unit.unit_type == bc.UnitType.Factory:
