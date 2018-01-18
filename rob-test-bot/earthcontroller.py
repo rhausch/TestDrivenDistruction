@@ -15,6 +15,7 @@ class EarthController:
 
     def __init__(self, gc):
         self.gc = gc
+        util.gc = gc
         self.units = units.Units(gc)
         self.my_team = gc.team()
         self.unit_map = unitmap.Unitmap(gc)
@@ -22,6 +23,13 @@ class EarthController:
             self.enemy_team = bc.Team.Blue
         else:
             self.enemy_team = bc.Team.Red
+        # let's start off with some research!
+        # we can queue as much as we want.
+        gc.queue_research(bc.UnitType.Worker)
+        gc.queue_research(bc.UnitType.Rocket)
+        gc.queue_research(bc.UnitType.Knight)
+        gc.queue_research(bc.UnitType.Knight)
+        gc.queue_research(bc.UnitType.Knight)
 
     def run_turn(self):
         # update world status
@@ -32,6 +40,9 @@ class EarthController:
         else:
             # No enemies visible. Lets attack starting locations, maybe they are there.
             self.unit_map.generate_map_from_initial_units()
+
+        if self.gc.round() % 50 == 0:
+            self.units.print()
 
         # reset round based variables
         self.structures_to_heal = []
@@ -124,7 +135,6 @@ class EarthController:
             if location.is_on_map():
                 my_location = knight.location.map_location()
                 d = self.unit_map.get_direction_at_location(my_location)
-                print("Knight ", knight.id, " got told direction ", d)
                 util.try_move_loose(knight, d, 1)
 
                 nearby_enemies = [unit for unit in self.gc.sense_nearby_units(location.map_location(), 2)

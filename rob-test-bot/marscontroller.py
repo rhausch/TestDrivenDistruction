@@ -14,6 +14,7 @@ class MarsController:
 
     def __init__(self, gc):
         self.gc = gc
+        util.gc = gc
         self.units = units.Units(gc)
         self.my_team = gc.team()
         self.unit_map = unitmap.Unitmap(gc)
@@ -32,8 +33,15 @@ class MarsController:
             # No enemies visible. Lets attack starting locations, maybe they are there.
             self.unit_map.generate_map_from_initial_units()
 
+        if self.gc.round() % 50 == 0:
+            self.units.print()
+
         # build structures and units
-        self.replicate_workers(5)
+        if self.gc.round() > 750:
+            # spend all that karbonite, isn't doing anything better
+            self.replicate_workers(999)
+        else:
+            self.replicate_workers(10)
 
         # run units
         self.run_rockets()
@@ -68,7 +76,6 @@ class MarsController:
             if location.is_on_map():
                 my_location = knight.location.map_location()
                 d = self.unit_map.get_direction_at_location(my_location)
-                print("Knight ", knight.id, " got told direction ", d)
                 util.try_move_loose(knight, d, 1)
 
                 nearby_enemies = [unit for unit in self.gc.sense_nearby_units(location.map_location(), 2)

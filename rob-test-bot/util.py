@@ -159,10 +159,10 @@ def try_unload(structure):
             return True
     return False
 
+
 def try_build(worker, factory):
-    if worker.location.map_location().is_adjacent_to(factory.location.map_location()):
-        if gc.can_build(worker.id, factory.id):
-            gc.build(worker.id, factory.id)
+    if gc.can_build(worker.id, factory.id):
+        gc.build(worker.id, factory.id)
 
 
 def try_repair(worker, factory):

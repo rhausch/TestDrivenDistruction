@@ -93,3 +93,23 @@ class Units:
 
     def get_closest_factory(self, location):
         return util.get_nearest_unit(location, self.my_factories)
+
+    def print(self):
+        print("My Units: ",
+              len(self.my_workers), "W ",
+              len(self.my_factories), "F ",
+              len(self.my_rockets), "R ",
+              len(self.my_knights), "k ",
+              len(self.my_rangers), "r ",
+              len(self.my_mages), "m ",
+              len(self.my_healers), "h ",
+              " total:", len(self.my_units))
+        print("Enemy Units:",
+              len(self.enemy_workers), "W ",
+              len(self.enemy_factories), "F ",
+              len(self.enemy_rockets), "R ",
+              len(self.enemy_knights), "k ",
+              len(self.enemy_rangers), "r ",
+              len(self.enemy_mages), "m ",
+              len(self.enemy_healers), "h ",
+              " total:", len(self.enemy_units))
