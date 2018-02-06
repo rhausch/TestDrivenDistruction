@@ -2,7 +2,7 @@ import battlecode as bc
 import util
 import units
 import unitmap
-
+import earthkarbonite
 
 class EarthController:
 
@@ -19,10 +19,13 @@ class EarthController:
         self.units = units.Units(gc)
         self.my_team = gc.team()
         self.unit_map = unitmap.Unitmap(gc)
+        self.karbonite_map = earthkarbonite.EarthKarbonite(gc)
+
         if self.my_team == bc.Team.Red:
             self.enemy_team = bc.Team.Blue
         else:
             self.enemy_team = bc.Team.Red
+
         # let's start off with some research!
         # we can queue as much as we want.
         gc.queue_research(bc.UnitType.Worker)
@@ -40,6 +43,7 @@ class EarthController:
         else:
             # No enemies visible. Lets attack starting locations, maybe they are there.
             self.unit_map.generate_map_from_initial_units()
+        self.karbonite_map.generate_direction_map()
 
         if self.gc.round() % 50 == 0:
             self.units.print()
@@ -126,7 +130,8 @@ class EarthController:
                     direction = my_location.direction_to(closest_structure_to_heal.location.map_location())
                     util.try_move_loose(worker, direction, 1)
                 else:
-                    direction = util.get_random_direction()
+                    # direction = util.get_random_direction()
+                    direction = self.karbonite_map.get_direction_at_location(my_location)
                     util.try_move_loose(worker, direction, 2)
 
     def run_knights(self):
