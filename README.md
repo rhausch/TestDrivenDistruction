@@ -1,3 +1,7 @@
+> **Archived.** This is my entry for **Battlecode 2018** (MIT's programming competition), built on the official 2018 scaffold below. It is no longer maintained and is kept for historical reference only.
+
+---
+
 # Scaffold for Battlecode 2018
 
 The game now supports running with docker AND running without docker. See below for the docker instructions.
